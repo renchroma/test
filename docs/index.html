@@ -35,7 +35,7 @@
         <!-- Header -->
         <header class="mb-10 text-center">
             <h1 class="text-3xl font-bold tracking-tight text-blue-400">MindBody Coach</h1>
-            <p class="text-slate-400 mt-2">2025.12.19 | 心智體組成日誌</p>
+            <p class="text-slate-400 mt-2">心智體組成日誌</p>
         </header>
 
         <!-- API Key Input (僅第一次需要) -->
@@ -65,7 +65,7 @@
     <script>
 		let apiKey = localStorage.getItem('GEMINI_API_KEY') || "";
         // 根據您的可用模型列表，更新為 gemini-2.5-flash-preview-09-2025
-        let MODEL = "gemini-3-flash-preview"; 
+        let MODEL = "gemini-3.5-flash-preview"; 
         let currentQuestions = []; // 儲存當前題目以供 CSV 輸出使用
 
         function saveApiKey() {
