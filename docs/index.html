@@ -271,7 +271,8 @@ JSON 結構：
                     option_a: q.a,
                     option_b: q.b,
                     user_answer: answerText,
-                    score: selectedScore
+                    score: selectedScore,
+                    note: "" // 初始化為空字串，等待使用者在備忘錄頁籤填寫
                 });
             }
 
@@ -323,8 +324,9 @@ JSON 結構：
                         { title: "🧠 深度解析", content: section2Match[2].trim() },
                         { title: "💡 綜合建議", content: section3Match[2].trim() },
                         { title: "📈 累積趨勢", content: buildTrendTableHTML(history), isHtml: true },
-                        { title: "⚖️ 心智狀態", content: buildMentalStateTableHTML(history), isHtml: true }, // 這裡成功加入新頁籤了！
-                        { title: "🧾 本次紀錄", content: buildSessionTableHTML(sessionData), isHtml: true }
+                        { title: "⚖️ 心智狀態", content: buildMentalStateTableHTML(history), isHtml: true },
+                        { title: "🧾 本次紀錄", content: buildSessionTableHTML(sessionData), isHtml: true },
+                        { title: "📝 備忘錄", content: buildNoteTabHTML(), isHtml: true }
                     ];
                     // 執行頁籤渲染
                     renderTabs(tabs, reportDiv);
@@ -535,6 +537,92 @@ JSON 結構：
             container.appendChild(header);
             container.appendChild(contentContainer);
         }
+
+        function buildNoteTabHTML() {
+            // 取得目前 sessionData 中的 note（四筆應該相同）
+            const currentNote = window.currentSessionData && window.currentSessionData[0] 
+                ? window.currentSessionData[0].note || '' 
+                : '';
+            
+            return `
+                <div class="mb-6">
+                    <h3 class="text-sm font-semibold text-blue-300 mb-2">📝 本次測驗備忘錄</h3>
+                    <p class="text-xs text-slate-400 mb-4">
+                        記錄本次測驗的心理狀態、生活事件或任何想法。例如：「今天壓力很大，睡眠不足」、「運動後心情較好」等。
+                    </p>
+                </div>
+                <div class="space-y-4">
+                    <textarea 
+                        id="note-input" 
+                        class="w-full bg-slate-800 border border-slate-700 p-4 rounded-lg text-slate-200 min-h-[200px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        placeholder="在此輸入你的備忘錄...
+
+例如：
+- 今天的心情狀態
+- 重大生活事件
+- 睡眠品質、飲食狀況
+- 特殊壓力或情緒">${escapeHtml(currentNote)}</textarea>
+                    <div class="flex gap-3">
+                        <button 
+                            onclick="saveNote()" 
+                            class="flex-1 bg-emerald-700 hover:bg-emerald-600 p-3 rounded-lg font-semibold transition flex items-center justify-center gap-2">
+                            <span>✔</span> 存入備忘錄
+                        </button>
+                        <button 
+                            onclick="document.getElementById('note-input').value = ''" 
+                            class="bg-slate-700 hover:bg-slate-600 px-4 py-3 rounded-lg transition">
+                            🗑️ 清除
+                        </button>
+                    </div>
+                    <div id="note-status" class="text-sm text-slate-400 text-center min-h-[1.5rem]"></div>
+                </div>
+                <div class="mt-6 p-4 bg-blue-900/20 border border-blue-800/50 rounded-lg">
+                    <p class="text-xs text-blue-200 leading-relaxed">
+                        <b>💡 使用提示：</b> 備忘錄將同時存入本次 4 題的所有記錄中，並包含在下載的 CSV 檔案裡。你可以用 Excel 樞紐分析，例如「查看壓力大時的 Ti/Fe 變化」。
+                    </p>
+                </div>
+            `;
+        }
+
+        function saveNote() {
+            const noteInput = document.getElementById('note-input');
+            const statusDiv = document.getElementById('note-status');
+            const noteText = noteInput.value.trim();
+            
+            if (!window.currentSessionData || window.currentSessionData.length === 0) {
+                statusDiv.innerHTML = '<span class="text-red-400">✘ 錯誤：無法找到本次測驗資料</span>';
+                return;
+            }
+            
+            // 1. 更新 window.currentSessionData 的 4 筆記錄
+            window.currentSessionData.forEach(record => {
+                record.note = noteText;
+            });
+            
+            // 2. 更新 localStorage 中對應的 4 筆記錄
+            const history = JSON.parse(localStorage.getItem('MBTI_HISTORY') || '[]');
+            const timestamp = window.currentSessionData[0].timestamp;
+            
+            // 找到同一時間戳的記錄並更新
+            let updatedCount = 0;
+            history.forEach(record => {
+                if (record.timestamp === timestamp) {
+                    record.note = noteText;
+                    updatedCount++;
+                }
+            });
+            
+            localStorage.setItem('MBTI_HISTORY', JSON.stringify(history));
+            
+            // 3. 顯示成功訊息
+            statusDiv.innerHTML = `<span class="text-emerald-400">✔ 已成功儲存！已更新 ${updatedCount} 筆記錄</span>`;
+            
+            // 3 秒後清除訊息
+            setTimeout(() => {
+                statusDiv.innerHTML = '';
+            }, 3000);
+        }
+
         // 新增：心智狀態計算函數
         function buildMentalStateTableHTML(history) {
             const axes = [
@@ -687,7 +775,13 @@ JSON 結構：
                 return;
             }
             
-            const headers = Object.keys(data[0]);
+            // 收集所有可能的欄位（包含舊資料沒有的欄位）
+            const allKeys = new Set();
+            data.forEach(row => {
+                Object.keys(row).forEach(key => allKeys.add(key));
+            });
+            const headers = Array.from(allKeys);
+            
             const csvRows = [];
             
             // 加入標題列
@@ -696,7 +790,7 @@ JSON 結構：
             // 加入資料列
             for (const row of data) {
                 const values = headers.map(header => {
-                    const val = row[header] || '';
+                    const val = row[header] !== undefined ? row[header] : ''; // 對缺失欄位用空字串
                     // 處理包含逗號或換行的欄位，用雙引號包起來
                     return `"${String(val).replace(/"/g, '""')}"`;
                 });
