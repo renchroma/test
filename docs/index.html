@@ -58,7 +58,10 @@
             <div id="report-content" class="prose prose-invert mb-8">
                 <!-- AI 分析報告 -->
             </div>
-            <button onclick="resetApp()" class="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition">明日再測</button>
+            <div class="space-y-3">
+                <button onclick="resetApp()" class="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition">再測試一次</button>
+                <button onclick="window.close()" class="w-full bg-red-700 hover:bg-red-600 p-3 rounded-lg transition">關閉網頁</button>
+            </div>
         </div>
     </div>
 
@@ -537,7 +540,15 @@ JSON 結構：
 
             const rows = axes.map(axis => {
                 // 篩選該維度的所有歷史記錄
-                const axisData = history.filter(h => h.dimension === axis.id);
+                // 原本以完全比對 axis.id，可能因為 model 回傳的 dim 格式（空白、順序或分隔符）不一致，導致漏算。
+                // 改為判斷 dimension 是否同時包含左右兩個功能名（忽略大小寫與空白），以提高容錯性。
+                const axisData = history.filter(h => {
+                    if (!h || !h.dimension) return false;
+                    const dim = String(h.dimension).toLowerCase();
+                    const left = String(axis.left).toLowerCase();
+                    const right = String(axis.right).toLowerCase();
+                    return dim.includes(left) && dim.includes(right);
+                });
                 const count = axisData.length;
 
                 if (count < 21) {
