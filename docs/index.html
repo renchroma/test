@@ -60,7 +60,10 @@
             </div>
             <div class="space-y-3">
                 <button onclick="resetApp()" class="w-full bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition">再測試一次</button>
-                <button onclick="window.close()" class="w-full bg-red-700 hover:bg-red-600 p-3 rounded-lg transition">關閉網頁</button>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="downloadHistoryCSV()" class="bg-emerald-700 hover:bg-emerald-600 p-3 rounded-lg transition">📊 下載累積統計</button>
+                    <button onclick="downloadSessionCSV()" class="bg-blue-700 hover:bg-blue-600 p-3 rounded-lg transition">📄 下載本次紀錄</button>
+                </div>
             </div>
         </div>
     </div>
@@ -276,6 +279,9 @@ JSON 結構：
             const history = JSON.parse(localStorage.getItem('MBTI_HISTORY') || '[]');
             history.push(...sessionData);
             localStorage.setItem('MBTI_HISTORY', JSON.stringify(history));
+            
+            // 保存本次資料到全域變數供下載使用
+            window.currentSessionData = sessionData;
 
             // 3. 切換畫面
             document.getElementById('question-view').classList.add('hidden');
@@ -672,6 +678,64 @@ JSON 結構：
 
         function resetApp() {
             location.reload();
+        }
+
+        function downloadCSV(data, filename) {
+            // 將 JSON 陣列轉換為 CSV
+            if (!data || data.length === 0) {
+                alert('沒有資料可下載');
+                return;
+            }
+            
+            const headers = Object.keys(data[0]);
+            const csvRows = [];
+            
+            // 加入標題列
+            csvRows.push(headers.join(','));
+            
+            // 加入資料列
+            for (const row of data) {
+                const values = headers.map(header => {
+                    const val = row[header] || '';
+                    // 處理包含逗號或換行的欄位，用雙引號包起來
+                    return `"${String(val).replace(/"/g, '""')}"`;
+                });
+                csvRows.push(values.join(','));
+            }
+            
+            // 建立下載連結（移除 BOM，使用純 UTF-8）
+            const csvContent = csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function downloadHistoryCSV() {
+            const history = JSON.parse(localStorage.getItem('MBTI_HISTORY') || '[]');
+            if (history.length === 0) {
+                alert('尚無累積記錄');
+                return;
+            }
+            const timestamp = new Date().toISOString().slice(0, 10);
+            downloadCSV(history, `MBTI累積統計_${timestamp}.csv`);
+        }
+
+        function downloadSessionCSV() {
+            // 從全域變數取得本次的 sessionData（需要在 generateReport 中保存）
+            const sessionData = window.currentSessionData;
+            if (!sessionData || sessionData.length === 0) {
+                alert('尚無本次記錄');
+                return;
+            }
+            const timestamp = new Date().toISOString().slice(0, 10);
+            downloadCSV(sessionData, `MBTI本次紀錄_${timestamp}.csv`);
         }
 
         if (apiKey) initApp();
